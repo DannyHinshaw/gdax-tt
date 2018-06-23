@@ -132,6 +132,7 @@ export class Trader extends Writable {
                 this.logger.log('debug', 'Adding market order to unfilledMarketOrders', order.id);
                 this.unfilledMarketOrders.add(order.id);
             }
+            this.emitMessageAsync('Trader.order-placed', order);
             return order;
         }).catch((err: StreamError) => {
             // Errors can fail if they're too precise, too small, or the API is down
