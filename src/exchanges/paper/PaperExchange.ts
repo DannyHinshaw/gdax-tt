@@ -99,6 +99,16 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
         const book = this.getBookForProduct(liveOrder.productId);
         if (order.orderType === 'limit') {
             book.add(liveOrder);
+            // TODO: Keep testing, hopefully below is unnecessary.
+            // if (book.getLevel(liveOrder.side, liveOrder.price)) {
+            //     console.log('LEVEL EXISTS::PRICE::', liveOrder.id);
+            //     book.add(liveOrder);
+            // } else {
+            //     const newLevel = new AggregatedLevelWithOrders(liveOrder.price);
+            //     book.addLevel(liveOrder.side, newLevel);
+            //     book.add(liveOrder);
+            //     console.log('LEVEL CREATED::PRICE::', liveOrder.id);
+            // }
         } else if (order.orderType === 'market') {
             this.fillMarketOrder(order, liveOrder);
         } else {
@@ -284,6 +294,9 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     }
 
     private fillLimitOrder(_orderBook: BookBuilder, l3Order: Level3Order, tradeMsg: TradeMessage) {
+        // clear order from book
+        this.clearOrder(l3Order.id, tradeMsg.productId);
+
         const executedMsg: TradeExecutedMessage = {
             type: 'tradeExecuted',
             productId: tradeMsg.productId,
@@ -296,6 +309,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             time: new Date(),
         };
         this.announceTradeExecuted(executedMsg);
+
         // current implementation completely fills orders, so emit TradeFinalizedMessage as well
         const finalizedMsg: TradeFinalizedMessage = {
             type: 'tradeFinalized',
@@ -308,9 +322,6 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             reason: 'limit order triggered by trade price',
         };
         this.announceTradeFinalized(finalizedMsg);
-
-        // clear order from book
-        this.clearOrder(l3Order.id, tradeMsg.productId);
     }
 
     private announceTradeExecuted(executedMsg: TradeExecutedMessage) {
