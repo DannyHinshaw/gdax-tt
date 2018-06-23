@@ -34,11 +34,11 @@ GDAX.FeedFactory(logger, ['BTC-USD']).then((feed: ExchangeFeed) => {
 
     // register for Trade events
     trader.on('Trader.order-placed', (msg: LiveOrder) => {
-        logger.log('info', 'Order placed', JSON.stringify(msg));
+        logger.log('info', 'Order placed', JSON.stringify(msg, null, 2));
     });
 
     trader.on('Trader.trade-executed', (msg: TradeExecutedMessage) => {
-        logger.log('info', 'Trade executed', JSON.stringify(msg));
+        logger.log('info', 'Trade executed', JSON.stringify(msg, null, 2));
 
         let newDelta = positionDeltaByProduct.getValue(msg.productId);
         // after trade is executed, need to recalculate overall position delta
@@ -46,7 +46,7 @@ GDAX.FeedFactory(logger, ['BTC-USD']).then((feed: ExchangeFeed) => {
         if (msg.side === 'buy') {
             deltaChange = Big(msg.tradeSize);
         } else if (msg.side === 'sell') {
-            deltaChange = Big(msg.tradeSize).mul(-1);
+            deltaChange = Big(msg.tradeSize).neg();
         }
         // if delta has not been previously defined
         if (newDelta === undefined) {
@@ -87,11 +87,14 @@ GDAX.FeedFactory(logger, ['BTC-USD']).then((feed: ExchangeFeed) => {
         // place appropriate buy/sell order to remain delta neutral
         if (trade.side === 'buy' || trade.side === 'sell') {
             const positionDelta = positionDeltaByProduct.getValue(trade.productId);
+            const pendingBuyOrders = trader.state().asks.length;
+            const pendingSellOrders = trader.state().bids.length;
 
-            // if there is no existing delta and trader has not received initial straddle orders
-            if (positionDelta === undefined && trader.state().orderPool && trader.state().asks.length > 0) {
-                // no delta position defined for this product, straddle price with buy/sell orders
-                trader.submitPlaceOrder({
+            // if there is no existing delta and there are no pending buy/sell orders
+            if (positionDelta === undefined &&  pendingBuyOrders === 0 && pendingSellOrders === 0 ) {
+                // then no delta position defined for this product, therefore create "straddle" orders
+                // to buy and sell 1 dollar above and below the last trade price
+                trader.executeMessage({
                     type: 'placeOrder',
                     time: new Date(),
                     productId: trade.productId,
@@ -99,8 +102,8 @@ GDAX.FeedFactory(logger, ['BTC-USD']).then((feed: ExchangeFeed) => {
                     size: '1',
                     side: 'sell',
                     orderType: 'limit',
-                }) ;
-                trader.submitPlaceOrder({
+                });
+                trader.executeMessage({
                     type: 'placeOrder',
                     time: new Date(),
                     productId: trade.productId,
@@ -109,10 +112,10 @@ GDAX.FeedFactory(logger, ['BTC-USD']).then((feed: ExchangeFeed) => {
                     side: 'buy',
                     orderType: 'limit',
                 });
-            } else if (positionDelta.greaterThan(0)) {
+            } else if (positionDelta && positionDelta.greaterThan(0)) {
                 const deltaChangeNeeded = positionDelta.abs();
                 // need to place sell order to get back to delta nuetral
-                trader.submitPlaceOrder({
+                trader.executeMessage({
                     type: 'placeOrder',
                     time: new Date(),
                     productId: trade.productId,
@@ -121,10 +124,10 @@ GDAX.FeedFactory(logger, ['BTC-USD']).then((feed: ExchangeFeed) => {
                     side: 'sell',
                     orderType: 'limit',
                 } as PlaceOrderMessage);
-            } else if (positionDelta.lessThan(0)) {
+            } else if (positionDelta && positionDelta.lessThan(0)) {
                 const deltaChangeNeeded = positionDelta.abs();
                 // need to place buy order to get back to delta nuetral
-                trader.submitPlaceOrder({
+                trader.executeMessage({
                     type: 'placeOrder',
                     time: new Date(),
                     productId: trade.productId,
