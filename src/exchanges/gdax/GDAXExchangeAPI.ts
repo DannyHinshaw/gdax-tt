@@ -218,6 +218,8 @@ export class GDAXExchangeAPI implements PublicExchangeAPI, AuthenticatedExchange
                     type: 'limit',
                     client_oid: order.clientId,
                     post_only: order.postOnly,
+                    stop: order.stop,
+                    stop_price: order.stopPrice,
                     time_in_force: order.extra && order.extra.time_in_force,
                     cancel_after: order.extra && order.extra.cancel_after,
                     stp: order.extra && order.extra.stp
@@ -230,6 +232,8 @@ export class GDAXExchangeAPI implements PublicExchangeAPI, AuthenticatedExchange
                     side: order.side,
                     size: order.size,
                     client_oid: order.clientId,
+                    stop: order.stop,
+                    stop_price: order.stopPrice,
                     funds: order.funds,
                     stp: order.extra && order.extra.stp
                 };
