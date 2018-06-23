@@ -16,10 +16,10 @@ import { PlaceOrderMessage } from '../core/index';
 
 const logger = ConsoleLoggerFactory();
 
-const product = 'BTC-USD';
+const product = 'ETH-USD';
 
 // create feed WITHOUT authentication to ensure no account activity can really occur
-GDAX.FeedFactory(logger, ['BTC-USD']).then((feed: ExchangeFeed) => {
+GDAX.FeedFactory(logger, [product]).then((feed: ExchangeFeed) => {
     const paperExchange = new PaperExchange({logger: logger});
     const positionDeltaByProduct = new Dictionary<string, BigJS>();
 
@@ -94,32 +94,37 @@ GDAX.FeedFactory(logger, ['BTC-USD']).then((feed: ExchangeFeed) => {
             if (positionDelta === undefined &&  pendingBuyOrders === 0 && pendingSellOrders === 0 ) {
                 // then no delta position defined for this product, therefore create "straddle" orders
                 // to buy and sell 1 dollar above and below the last trade price
-                trader.executeMessage({
+
+                // We can use the trader placeOrder with PaperExchange to chain orders async...
+                return trader.placeOrder({
                     type: 'placeOrder',
                     time: new Date(),
                     productId: trade.productId,
-                    price: Big(trade.price).add(1).toString(),
+                    price: Big(trade.price).add(.01).toString(),
                     size: '1',
                     side: 'sell',
                     orderType: 'limit',
-                });
-                trader.executeMessage({
-                    type: 'placeOrder',
-                    time: new Date(),
-                    productId: trade.productId,
-                    price: Big(trade.price).minus(1).toString(),
-                    size: '1',
-                    side: 'buy',
-                    orderType: 'limit',
+                }).then(() => {
+                    return trader.placeOrder({
+                        type: 'placeOrder',
+                        time: new Date(),
+                        productId: trade.productId,
+                        price: Big(trade.price).minus(.01).toString(),
+                        size: '1',
+                        side: 'buy',
+                        orderType: 'limit',
+                    });
                 });
             } else if (positionDelta && positionDelta.greaterThan(0)) {
                 const deltaChangeNeeded = positionDelta.abs();
                 // need to place sell order to get back to delta nuetral
-                trader.executeMessage({
+
+                // ...or we can simply execute order placement viw synchronous call to executeMessage
+                return trader.executeMessage({
                     type: 'placeOrder',
                     time: new Date(),
                     productId: trade.productId,
-                    price: Big(trade.price).add(1).toString(),
+                    price: Big(trade.price).add(.01).toString(),
                     size: deltaChangeNeeded.toString(),
                     side: 'sell',
                     orderType: 'limit',
@@ -127,17 +132,18 @@ GDAX.FeedFactory(logger, ['BTC-USD']).then((feed: ExchangeFeed) => {
             } else if (positionDelta && positionDelta.lessThan(0)) {
                 const deltaChangeNeeded = positionDelta.abs();
                 // need to place buy order to get back to delta nuetral
-                trader.executeMessage({
+                return trader.executeMessage({
                     type: 'placeOrder',
                     time: new Date(),
                     productId: trade.productId,
-                    price: Big(trade.price).minus(1).toString(),
+                    price: Big(trade.price).minus(.01).toString(),
                     size: deltaChangeNeeded.toString(),
                     side: 'buy',
                     orderType: 'limit',
                 } as PlaceOrderMessage);
             } else {
                 // already at delta neutral, so no action needed
+                return null;
             }
         }
     });
