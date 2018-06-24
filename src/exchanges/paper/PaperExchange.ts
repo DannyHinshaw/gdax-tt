@@ -69,13 +69,13 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
         }
 
         // util function, n must be a number (not undefined or NaN) and must be positive
-        const assertPositiveNumber = (n: any): boolean => !n || isNaN(+n) || +n < 0;
+        const assertPositiveNumber = (n: number | string): boolean => n && !isNaN(+n) || +n > 0;
 
         // make sure order price and size are positive numbers before assignment
-        if (assertPositiveNumber(order.price)) {
-            return Promise.reject(new GTTError('Order price must be a positive number'));
-        } else if (assertPositiveNumber(order.size)) {
-            return Promise.reject(new GTTError('Order size must be a positive number'));
+        if (!assertPositiveNumber(order.price)) {
+            return Promise.reject(new GTTError('Order price must be a positive number.'));
+        } else if (!assertPositiveNumber(order.size)) {
+            return Promise.reject(new GTTError('Order size must be a positive number.'));
         }
 
         const orderSize: BigJS = Big(order.size);
