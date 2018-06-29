@@ -130,6 +130,7 @@ export class Trader extends Writable {
             } else {
                 this.unfilledMarketOrders.add(order.id);
             }
+            this.emitMessageAsync('Trader.order-placed', order);
             return order;
         }).catch((err: StreamError) => {
             // Errors can fail if they're too precise, too small, or the API is down
@@ -232,11 +233,7 @@ export class Trader extends Writable {
         if (request.productId !== this._productId) {
             return;
         }
-        this.placeOrder(request).then((result: LiveOrder) => {
-            if (result) {
-                this.emitMessageAsync('Trader.order-placed', result);
-            }
-        });
+        this.placeOrder(request);
     }
 
     private handleCancelOrder(request: CancelOrderRequestMessage) {

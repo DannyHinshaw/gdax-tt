@@ -99,16 +99,6 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
         const book = this.getBookForProduct(liveOrder.productId);
         if (order.orderType === 'limit') {
             book.add(liveOrder);
-            // TODO: Keep testing, hopefully below is unnecessary.
-            // if (book.getLevel(liveOrder.side, liveOrder.price)) {
-            //     console.log('LEVEL EXISTS::PRICE::', liveOrder.id);
-            //     book.add(liveOrder);
-            // } else {
-            //     const newLevel = new AggregatedLevelWithOrders(liveOrder.price);
-            //     book.addLevel(liveOrder.side, newLevel);
-            //     book.add(liveOrder);
-            //     console.log('LEVEL CREATED::PRICE::', liveOrder.id);
-            // }
         } else if (order.orderType === 'market') {
             this.fillMarketOrder(order, liveOrder);
         } else {
