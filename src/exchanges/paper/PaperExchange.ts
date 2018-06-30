@@ -14,6 +14,7 @@ export interface PaperExchangeConfig {
     logger?: Logger;
     // desired percentage rate to simulate errors (0 = no errors; 0.5 = 50% of the time, etc.)
     errorRate?: number;
+    timeoutRange?: {low: number, high: number};
 }
 
 // TODO: take advantage of 'typed-event-emitter' module and get rid of this interface
@@ -35,6 +36,8 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     public owner: string;
     // instance properties specified by config
     protected errorRate: number;
+    protected timeoutRange: {low: number, high: number};
+    protected timeout: number;
     // master collection of all live orders for quick lookup by orderId
     protected readonly liveOrdersById: Collections.Dictionary<string, LiveOrder>;
     // book of pending orders for each product that has orders
@@ -47,6 +50,14 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     constructor(config: PaperExchangeConfig) {
         super({ objectMode: true, highWaterMark: 1024 });
         this.errorRate = config.errorRate || 0;
+        this.timeoutRange = {
+            low: config.timeoutRange.low,
+            high: config.timeoutRange.high
+        } || {
+            low: 0,
+            high: 0
+        };
+        this.timeout = Math.floor(Math.random() * (this.timeoutRange.high - this.timeoutRange.low + 1)) + this.timeoutRange.low;
         this.logger = config.logger;
         this.liveOrdersById = new Collections.Dictionary();
         this.pendingOrdersByProduct = new Collections.Dictionary();
@@ -55,124 +66,132 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     }
 
     // ----------------------------------- Authenticated API methods --------------------------------------------------//
-    public placeOrder(order: PlaceOrderMessage): Promise<LiveOrder> {
-        // TODO: add some sort of random delay time
-
-        // randomly throw error to simulate connection problems
-        if (Math.random() <= this.errorRate) {
-            return Promise.reject(new HTTPError(`Placing order on ${order.productId} failed`, {status: 1, body: 'Random error simulation'}));
-        }
-
-        // make sure order message meets expected formats
-        if (order.side !== 'buy' && order.side !== 'sell') {
-            return Promise.reject(new GTTError('Order side must be either \'buy\' or \'sell\'.  Order side was: ' + order.side));
-        }
-
-        // util function, n must be a number (not undefined or NaN) and must be positive
-        const assertPositiveNumber = (n: any): boolean => !n || isNaN(+n) || +n < 0;
-
-        // make sure order price and size are positive numbers before assignment
-        if (assertPositiveNumber(order.price)) {
-            return Promise.reject(new GTTError('Order price must be a positive number'));
-        } else if (assertPositiveNumber(order.size)) {
-            return Promise.reject(new GTTError('Order size must be a positive number'));
-        }
-
-        const orderSize: BigJS = Big(order.size);
-        const orderPrice: BigJS = Big(order.price);
-
-        // generate random order id
-        const orderID: string = GUID.raw();
-        const liveOrder: LiveOrder = {
-            price: orderPrice,
-            size: orderSize,
-            side: order.side,
-            id: orderID,
-            time: new Date(),
-            productId: order.productId,
-            status: 'Pending',
-            extra: order
-        };
-        // put copy of the live order in hash to allow quick lookup by orderId
-        this.liveOrdersById.setValue(liveOrder.id, liveOrder);
-        // put limit order in the book to for future lookup by order type and price
-        const book = this.getBookForProduct(liveOrder.productId);
-        if (order.orderType === 'limit') {
-            book.add(liveOrder);
-        } else if (order.orderType === 'market') {
-            this.fillMarketOrder(order, liveOrder);
-        } else {
-            return Promise.reject(new GTTError('PaperExchange does not support orderType:' + order.orderType));
-        }
-
-        return Promise.resolve(liveOrder);
-    }
-
-    public cancelOrder(id: string): Promise<string> {
-        if (this.liveOrdersById.containsKey(id)) {
-            // remove order from both the id lookup table and the orderbook
-            const orderToCancel = this.liveOrdersById.getValue(id);
-            this.clearOrder(orderToCancel.id, orderToCancel.productId);
-            return Promise.resolve(id);
-        } else {
-            return Promise.reject('Could not locate order to remove with id:' + id);
-        }
-    }
-
-    public cancelAllOrders(productId: string): Promise<string[]> {
-        if (!productId) {
-            // remove all orders for all products
-            const allOrderIds = this.liveOrdersById.keys();
-            allOrderIds.forEach((orderId: string) => {
-                this.cancelOrder(orderId);
-            });
-            return Promise.resolve(allOrderIds);
-        } else {
-            // remove just orders for a specific product
-            const cancelledOrderIds = new Collections.Set<string>();
-            if (this.pendingOrdersByProduct.getValue(productId) !== undefined) {
-                // collect all orders on the buy side
-                cancelledOrderIds.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).bidTree));
-                // collect all orders on the sell side
-                cancelledOrderIds.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).askTree));
-                // remove all order id's from lookup
-                cancelledOrderIds.forEach((orderId) => {
-                    this.clearOrder(orderId, productId);
-                });
-                // undefined out the orderbook for future garbage collection
-                this.pendingOrdersByProduct.remove(productId);
+    public placeOrder(order: PlaceOrderMessage): Promise<any> {
+        return this.apiTimer((): Promise<LiveOrder> => {
+            // randomly throw error to simulate connection problems
+            if (Math.random() <= this.errorRate) {
+                return Promise.reject(new HTTPError(`Placing order on ${order.productId} failed`, {status: 1, body: 'Random error simulation'}));
             }
-            return Promise.resolve(cancelledOrderIds.toArray());
-        }
-    }
 
-    public loadOrder(id: string): Promise<LiveOrder> {
-        if (this.liveOrdersById.containsKey(id)) {
-            return Promise.resolve(this.liveOrdersById.getValue(id));
-        } else {
-            return Promise.reject('Could not find live order with id:' + id);
-        }
-    }
-
-    public loadAllOrders(productId: string): Promise<LiveOrder[]> {
-        if (!productId) {
-            return Promise.resolve(this.liveOrdersById.values());
-        } else {
-            // create Set that distinguishes LiveOrder items by their id
-            const values = new Collections.Set<LiveOrder>((item) => item.id);
-            if (this.pendingOrdersByProduct.getValue(productId) !== undefined) {
-                const orderIdsForProduct = new Collections.Set<string>();
-                // collect all orders on the buy side
-                orderIdsForProduct.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).bidTree));
-                // collect all orders on the sell side
-                orderIdsForProduct.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).askTree));
-                // lookup all of the LiveOrder objects by id and put them in a set
-                orderIdsForProduct.forEach((orderId) => {
-                    values.add(this.liveOrdersById.getValue(orderId));
-                });
+            // make sure order message meets expected formats
+            if (order.side !== 'buy' && order.side !== 'sell') {
+                return Promise.reject(new GTTError('Order side must be either \'buy\' or \'sell\'.  Order side was: ' + order.side));
             }
-            return Promise.resolve(values.toArray());
-        }
+
+            // util function, n must be a number (not undefined or NaN) and must be positive
+            const assertPositiveNumber = (n: any): boolean => !n || isNaN(+n) || +n < 0;
+
+            // make sure order price and size are positive numbers before assignment
+            if (assertPositiveNumber(order.price)) {
+                return Promise.reject(new GTTError('Order price must be a positive number'));
+            } else if (assertPositiveNumber(order.size)) {
+                return Promise.reject(new GTTError('Order size must be a positive number'));
+            }
+
+            const orderSize: BigJS = Big(order.size);
+            const orderPrice: BigJS = Big(order.price);
+
+            // generate random order id
+            const orderID: string = GUID.raw();
+            const liveOrder: LiveOrder = {
+                price: orderPrice,
+                size: orderSize,
+                side: order.side,
+                id: orderID,
+                time: new Date(),
+                productId: order.productId,
+                status: 'Pending',
+                extra: order
+            };
+            // put copy of the live order in hash to allow quick lookup by orderId
+            this.liveOrdersById.setValue(liveOrder.id, liveOrder);
+            // put limit order in the book to for future lookup by order type and price
+            const book = this.getBookForProduct(liveOrder.productId);
+            if (order.orderType === 'limit') {
+                book.add(liveOrder);
+            } else if (order.orderType === 'market') {
+                this.fillMarketOrder(order, liveOrder);
+            } else {
+                return Promise.reject(new GTTError('PaperExchange does not support orderType:' + order.orderType));
+            }
+
+            return Promise.resolve(liveOrder);
+        });
+    }
+
+    public cancelOrder(id: string): Promise<any> {
+        return this.apiTimer((): Promise<string> => {
+            if (this.liveOrdersById.containsKey(id)) {
+                // remove order from both the id lookup table and the orderbook
+                const orderToCancel = this.liveOrdersById.getValue(id);
+                this.clearOrder(orderToCancel.id, orderToCancel.productId);
+                return Promise.resolve(id);
+            } else {
+                return Promise.reject('Could not locate order to remove with id:' + id);
+            }
+        });
+    }
+
+    public cancelAllOrders(productId: string): Promise<any> {
+        return this.apiTimer((): Promise<string[]> => {
+            if (!productId) {
+                // remove all orders for all products
+                const allOrderIds = this.liveOrdersById.keys();
+                allOrderIds.forEach((orderId: string) => {
+                    this.cancelOrder(orderId);
+                });
+                return Promise.resolve(allOrderIds);
+            } else {
+                // remove just orders for a specific product
+                const cancelledOrderIds = new Collections.Set<string>();
+                if (this.pendingOrdersByProduct.getValue(productId) !== undefined) {
+                    // collect all orders on the buy side
+                    cancelledOrderIds.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).bidTree));
+                    // collect all orders on the sell side
+                    cancelledOrderIds.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).askTree));
+                    // remove all order id's from lookup
+                    cancelledOrderIds.forEach((orderId) => {
+                        this.clearOrder(orderId, productId);
+                    });
+                    // undefined out the orderbook for future garbage collection
+                    this.pendingOrdersByProduct.remove(productId);
+                }
+                return Promise.resolve(cancelledOrderIds.toArray());
+            }
+        });
+    }
+
+    public loadOrder(id: string): Promise<any> {
+        return this.apiTimer((): Promise<LiveOrder> => {
+            if (this.liveOrdersById.containsKey(id)) {
+                return Promise.resolve(this.liveOrdersById.getValue(id));
+            } else {
+                return Promise.reject('Could not find live order with id:' + id);
+            }
+        });
+    }
+
+    public loadAllOrders(productId: string): Promise<any> {
+        return this.apiTimer((): Promise<LiveOrder[]> => {
+            if (!productId) {
+                return Promise.resolve(this.liveOrdersById.values());
+            } else {
+                // create Set that distinguishes LiveOrder items by their id
+                const values = new Collections.Set<LiveOrder>((item) => item.id);
+                if (this.pendingOrdersByProduct.getValue(productId) !== undefined) {
+                    const orderIdsForProduct = new Collections.Set<string>();
+                    // collect all orders on the buy side
+                    orderIdsForProduct.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).bidTree));
+                    // collect all orders on the sell side
+                    orderIdsForProduct.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).askTree));
+                    // lookup all of the LiveOrder objects by id and put them in a set
+                    orderIdsForProduct.forEach((orderId) => {
+                        values.add(this.liveOrdersById.getValue(orderId));
+                    });
+                }
+                return Promise.resolve(values.toArray());
+            }
+        });
     }
 
     public loadBalances(): Promise<Balances> {
@@ -219,6 +238,18 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
                 break;
         }
         callback();
+    }
+
+    /**
+     * Wrapper for api calls to simulate connection lag.
+     * @param {(data: any) => any} fn
+     * @returns {Promise<any>}
+     */
+    private apiTimer(fn: (data: any) => any) {
+        // TODO: Turn this into a method wrapper/decorator.
+        return new Promise((resolve) => {
+            return setTimeout(resolve(fn), this.timeout);
+        });
     }
 
     private collectOrderIds(tree: RBTree<AggregatedLevelWithOrders>): Collections.Set<string> {
@@ -373,5 +404,6 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     private clearOrder(orderId: string, productId: string) {
         this.pendingOrdersByProduct.getValue(productId).remove(orderId);
         this.liveOrdersById.remove(orderId);
+        this.getBookForProduct(productId).remove(orderId);
     }
 }
