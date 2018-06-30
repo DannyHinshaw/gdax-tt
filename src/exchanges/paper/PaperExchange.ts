@@ -248,7 +248,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     private apiTimer(fn: () => any) {
         // TODO: Turn this into a method wrapper/decorator.
         return new Promise((resolve) => {
-            return setTimeout(resolve(fn()), this.timeout);
+            return setTimeout(() => resolve(fn()), this.timeout);
         });
     }
 
