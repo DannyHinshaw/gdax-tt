@@ -114,6 +114,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             } else {
                 return Promise.reject(new GTTError('PaperExchange does not support orderType:' + order.orderType));
             }
+            console.log('placeOrder::this.liveOrdersById.values()::', this.liveOrdersById.values());
 
             return Promise.resolve(liveOrder);
         });
