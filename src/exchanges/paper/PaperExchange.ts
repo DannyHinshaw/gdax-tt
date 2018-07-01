@@ -134,7 +134,11 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     }
 
     public cancelAllOrders(productId: string): Promise<any> {
+        console.log('cancelAllOrders:: THE FUCKING FUNCTION');
+
         return this.apiTimer((): Promise<string[]> => {
+            console.log('cancelAllOrders:: THE FUCKING FUNCTION IN TIMER');
+
             if (!productId) {
                 // remove all orders for all products
                 const allOrderIds = this.liveOrdersById.keys();
@@ -148,6 +152,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             // remove just orders for a specific product
             const cancelledOrderIds = new Collections.Set<string>();
             if (this.pendingOrdersByProduct.getValue(productId) !== undefined) {
+                console.log('cancelAllOrders:: THE FUCKING IF STATEMENT');
 
                 // collect all orders on the buy side
                 cancelledOrderIds.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).bidTree));
