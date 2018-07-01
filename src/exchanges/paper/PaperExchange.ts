@@ -137,27 +137,34 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             if (!productId) {
                 // remove all orders for all products
                 const allOrderIds = this.liveOrdersById.keys();
-                allOrderIds.forEach((orderId: string) => {
-                    this.cancelOrder(orderId);
+                return Promise.all(allOrderIds.map((orderId: string) => {
+                    return this.cancelOrder(orderId);
+                })).then(() => {
+                    return Promise.resolve(allOrderIds);
                 });
-                return Promise.resolve(allOrderIds);
-            } else {
-                // remove just orders for a specific product
-                const cancelledOrderIds = new Collections.Set<string>();
-                if (this.pendingOrdersByProduct.getValue(productId) !== undefined) {
-                    // collect all orders on the buy side
-                    cancelledOrderIds.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).bidTree));
-                    // collect all orders on the sell side
-                    cancelledOrderIds.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).askTree));
-                    // remove all order id's from lookup
-                    cancelledOrderIds.forEach((orderId) => {
-                        this.clearOrder(orderId, productId);
-                    });
+            }
+
+            // remove just orders for a specific product
+            const cancelledOrderIds = new Collections.Set<string>();
+            if (this.pendingOrdersByProduct.getValue(productId) !== undefined) {
+
+                // collect all orders on the buy side
+                cancelledOrderIds.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).bidTree));
+                // collect all orders on the sell side
+                cancelledOrderIds.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).askTree));
+
+                // remove all order id's from lookup
+                const canceledOrdersArray: string[] = cancelledOrderIds.toArray();
+                return Promise.all(canceledOrdersArray.map((orderId) => {
+                    return this.clearOrder(orderId, productId);
+                })).then(() => {
                     // undefined out the orderbook for future garbage collection
                     this.pendingOrdersByProduct.remove(productId);
-                }
-                return Promise.resolve(cancelledOrderIds.toArray());
+                    return canceledOrdersArray;
+                });
             }
+
+            return Promise.resolve(cancelledOrderIds.toArray());
         });
     }
 
@@ -404,6 +411,5 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     private clearOrder(orderId: string, productId: string) {
         this.pendingOrdersByProduct.getValue(productId).remove(orderId);
         this.liveOrdersById.remove(orderId);
-        this.getBookForProduct(productId).remove(orderId);
     }
 }
