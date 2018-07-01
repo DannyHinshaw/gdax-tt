@@ -156,7 +156,8 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
                 // remove all order id's from lookup
                 const canceledOrdersArray: string[] = cancelledOrderIds.toArray();
                 return Promise.all(canceledOrdersArray.map((orderId) => {
-                    return this.clearOrder(orderId, productId);
+                    this.clearOrder(orderId, productId);
+                    return this.cancelOrder(orderId);
                 })).then(() => {
                     // undefined out the orderbook for future garbage collection
                     this.pendingOrdersByProduct.remove(productId);
