@@ -122,13 +122,13 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
 
     public cancelOrder(id: string): Promise<any> {
         return this.apiTimer((): Promise<string> => {
-            console.log('cancelOrder::this.liveOrdersById.values()::', this.liveOrdersById.values());
-
             if (this.liveOrdersById.containsKey(id)) {
                 // remove order from both the id lookup table and the orderbook
                 const orderToCancel = this.liveOrdersById.getValue(id);
                 this.clearOrder(orderToCancel.id, orderToCancel.productId);
             }
+
+            console.log('cancelOrder::this.liveOrdersById.values()::', this.liveOrdersById.values());
             return Promise.resolve(id);
         });
     }
@@ -161,6 +161,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
                 })).then(() => {
                     // undefined out the orderbook for future garbage collection
                     this.pendingOrdersByProduct.remove(productId);
+                    console.log('cancelAllOrders::this.liveOrdersById.values()::', this.liveOrdersById.values());
                     return canceledOrdersArray;
                 });
             }
