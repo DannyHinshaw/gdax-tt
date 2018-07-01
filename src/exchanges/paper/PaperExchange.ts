@@ -138,7 +138,6 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     public cancelAllOrders(productId: string): Promise<any> {
         return this.apiTimer((): Promise<string[]> => {
             if (!productId) {
-                console.log('cancelAllOrders:: NO PRODUCT ID');
                 // remove all orders for all products
                 const allOrderIds = this.liveOrdersById.keys();
                 return Promise.all(allOrderIds.map((orderId: string) => {
