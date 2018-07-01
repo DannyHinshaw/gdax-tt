@@ -297,10 +297,8 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
                 const i = orderBook.bidTree.iterator();
                 let l: AggregatedLevelWithOrders = i.next();
                 while (l !== null) {
-                    console.log('LEVEL::', l);
                     l.orders.forEach((level3Order) => {
                         if (level3Order.price.greaterThanOrEqualTo(tradePrice)) {
-                            console.log('Level3Order to FILL::', level3Order);
                             this.fillLimitOrder(orderBook, level3Order, msg);
                         }
                     });
@@ -313,10 +311,8 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
                 const i = orderBook.askTree.iterator();
                 let l: AggregatedLevelWithOrders = i.next();
                 while (l !== null) {
-                    console.log('LEVEL::', l);
                     l.orders.forEach((level3Order) => {
                         if (level3Order.price.lessThanOrEqualTo(tradePrice)) {
-                            console.log('Level3Order to FILL::', level3Order);
                             this.fillLimitOrder(orderBook, level3Order, msg);
                         }
                     });

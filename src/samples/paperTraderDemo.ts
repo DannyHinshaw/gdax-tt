@@ -119,7 +119,7 @@ GDAX.FeedFactory(logger, [product]).then((feed: ExchangeFeed) => {
                 const deltaChangeNeeded = positionDelta.abs();
                 // need to place sell order to get back to delta nuetral
 
-                // ...or we can simply execute order placement viw synchronous call to executeMessage
+                // ...or we can simply execute order placement with synchronous call to executeMessage
                 return trader.executeMessage({
                     type: 'placeOrder',
                     time: new Date(),
