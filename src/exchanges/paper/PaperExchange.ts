@@ -128,10 +128,8 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
                 // remove order from both the id lookup table and the orderbook
                 const orderToCancel = this.liveOrdersById.getValue(id);
                 this.clearOrder(orderToCancel.id, orderToCancel.productId);
-                return Promise.resolve(id);
-            } else {
-                return Promise.reject('Could not locate order to remove with id:' + id);
             }
+            return Promise.resolve(id);
         });
     }
 
