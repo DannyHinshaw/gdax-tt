@@ -127,18 +127,12 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
                 const orderToCancel = this.liveOrdersById.getValue(id);
                 this.clearOrder(orderToCancel.id, orderToCancel.productId);
             }
-
-            console.log('cancelOrder::this.liveOrdersById.values()::', this.liveOrdersById.values());
             return Promise.resolve(id);
         });
     }
 
     public cancelAllOrders(productId: string): Promise<any> {
-        console.log('cancelAllOrders:: THE FUCKING FUNCTION');
-
         return this.apiTimer((): Promise<string[]> => {
-            console.log('cancelAllOrders:: THE FUCKING FUNCTION IN TIMER');
-
             if (!productId) {
                 // remove all orders for all products
                 const allOrderIds = this.liveOrdersById.keys();
@@ -152,7 +146,6 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             // remove just orders for a specific product
             const cancelledOrderIds = new Collections.Set<string>();
             if (this.pendingOrdersByProduct.getValue(productId) !== undefined) {
-                console.log('cancelAllOrders:: THE FUCKING IF STATEMENT');
 
                 // collect all orders on the buy side
                 cancelledOrderIds.union(this.collectOrderIds(this.pendingOrdersByProduct.getValue(productId).bidTree));
@@ -166,7 +159,6 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
                 })).then(() => {
                     // undefined out the orderbook for future garbage collection
                     this.pendingOrdersByProduct.remove(productId);
-                    console.log('cancelAllOrders::this.liveOrdersById.values()::', this.liveOrdersById.values());
                     return canceledOrdersArray;
                 });
             }
