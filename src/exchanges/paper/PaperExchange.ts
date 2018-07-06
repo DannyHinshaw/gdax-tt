@@ -10,6 +10,7 @@ import { Duplex } from 'stream';
 import { Logger } from '../../utils/Logger';
 import { RBTree } from 'bintrees';
 
+let latencyMS: number = 0;
 let addLatency: boolean = false;
 
 /**
@@ -21,13 +22,11 @@ let addLatency: boolean = false;
  */
 function Latency(target: object, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) {
     const originalMethod = descriptor.value;
-
     descriptor.value = function(...args: any[]) {
         return addLatency
-            ? setTimeout(() => originalMethod.apply(this, args), 10000)
+            ? setTimeout(() => originalMethod.apply(this, args), latencyMS)
             : originalMethod.apply(this, args);
     };
-
     return descriptor;
 }
 
@@ -57,8 +56,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     public owner: string;
     // instance properties specified by config
     protected errorRate: number;
-    protected timeoutRange: {low: number, high: number};
-    protected timeout: number;
+    protected latencyRange: {low: number, high: number};
     // master collection of all live orders for quick lookup by orderId
     protected readonly liveOrdersById: Collections.Dictionary<string, LiveOrder>;
     // book of pending orders for each product that has orders
@@ -70,16 +68,16 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
 
     constructor(config: PaperExchangeConfig) {
         super({ objectMode: true, highWaterMark: 1024 });
-        addLatency = !!(config.timeoutRange.low && config.timeoutRange.high);
         this.errorRate = config.errorRate || 0;
-        this.timeoutRange = {
+        this.latencyRange = {
             low: config.timeoutRange.low,
             high: config.timeoutRange.high
         } || {
             low: 0,
             high: 0
         };
-        this.timeout = Math.floor(Math.random() * (this.timeoutRange.high - this.timeoutRange.low + 1)) + this.timeoutRange.low;
+        addLatency = !!(config.timeoutRange.low && config.timeoutRange.high);
+        latencyMS = Math.floor(Math.random() * (this.latencyRange.high - this.latencyRange.low + 1)) + this.latencyRange.low;
         this.logger = config.logger;
         this.liveOrdersById = new Collections.Dictionary();
         this.pendingOrdersByProduct = new Collections.Dictionary();
