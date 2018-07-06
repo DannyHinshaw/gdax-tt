@@ -26,12 +26,10 @@ function Latency(_target: object, _propertyKey: string, descriptor: TypedPropert
 
     descriptor.value = function(...args: any[]) {
         return addLatency
-            ? setTimeout(() => {
-                console.log('IN SETTIMEOUT::this::', this);
-                console.log('IN SETTIMEOUT::latencyMS::', latencyMS);
-                return originalMethod.apply(this, args);
-            }, latencyMS)
-            : originalMethod.apply(this, args);
+            ? new Promise((resolve) => {
+                return setTimeout(() => resolve(originalMethod.apply(this, args)), latencyMS);
+            })
+            : new Promise((resolve) => resolve(originalMethod.apply(this, args)));
     };
     return descriptor;
 }
