@@ -22,9 +22,15 @@ let addLatency: boolean = false;
  */
 function Latency(_target: object, _propertyKey: string, descriptor: TypedPropertyDescriptor<any>) {
     const originalMethod = descriptor.value;
+    console.log('IN Latency::addLatency::', addLatency);
+
     descriptor.value = function(...args: any[]) {
         return addLatency
-            ? setTimeout(() => originalMethod.apply(this, args), latencyMS)
+            ? setTimeout(() => {
+                console.log('IN SETTIMEOUT::this::', this);
+                console.log('IN SETTIMEOUT::latencyMS::', latencyMS);
+                return originalMethod.apply(this, args);
+            }, latencyMS)
             : originalMethod.apply(this, args);
     };
     return descriptor;
