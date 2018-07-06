@@ -20,7 +20,13 @@ const product = 'ETH-USD';
 
 // create feed WITHOUT authentication to ensure no account activity can really occur
 GDAX.FeedFactory(logger, [product]).then((feed: ExchangeFeed) => {
-    const paperExchange = new PaperExchange({logger: logger});
+    const paperExchange = new PaperExchange({
+        logger: logger,
+
+        // To further simulate real trading conditions we can add occasional errors and network latency
+        errorRate: .05, // Expressed as a percentage (.05 === 5%)
+        latencyRange: {low: 25, high: 150} // The paper exchange uses this range of milliseconds to generate random latencies.
+    });
     const positionDeltaByProduct = new Dictionary<string, BigJS>();
 
     // Configure the trader using the Paper Exchange API and not the exchange feed

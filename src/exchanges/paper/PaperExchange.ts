@@ -15,12 +15,12 @@ let addLatency: boolean = false;
 
 /**
  * Method decorator to add simulated latency to public API calls.
- * @param {Object} target
- * @param {string} propertyKey
+ * @param {Object} _target
+ * @param {string} _propertyKey
  * @param {TypedPropertyDescriptor<any>} descriptor
  * @returns {TypedPropertyDescriptor<any>}
  */
-function Latency(target: object, propertyKey: string, descriptor: TypedPropertyDescriptor<any>) {
+function Latency(_target: object, _propertyKey: string, descriptor: TypedPropertyDescriptor<any>) {
     const originalMethod = descriptor.value;
     descriptor.value = function(...args: any[]) {
         return addLatency
@@ -69,14 +69,10 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     constructor(config: PaperExchangeConfig) {
         super({ objectMode: true, highWaterMark: 1024 });
         this.errorRate = config.errorRate || 0;
-        this.latencyRange = {
-            low: config.latencyRange.low,
-            high: config.latencyRange.high
-        } || {
-            low: 0,
-            high: 0
-        };
-        addLatency = !!(config.latencyRange.low && config.latencyRange.high);
+        this.latencyRange = config.latencyRange && config.latencyRange.low && config.latencyRange.high
+            ? {low: config.latencyRange.low, high: config.latencyRange.high}
+            : {low: 0, high: 0};
+        addLatency = !!(config.latencyRange && config.latencyRange.low && config.latencyRange.high);
         latencyMS = Math.floor(Math.random() * (this.latencyRange.high - this.latencyRange.low + 1)) + this.latencyRange.low;
         this.logger = config.logger;
         this.liveOrdersById = new Collections.Dictionary();
@@ -144,8 +140,9 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             // remove order from both the id lookup table and the orderbook
             const orderToCancel = this.liveOrdersById.getValue(id);
             this.clearOrder(orderToCancel.id, orderToCancel.productId);
+            return Promise.resolve(id);
         }
-        return Promise.resolve(id);
+        return Promise.reject('Could not locate order to remove with id:' + id);
     }
 
     @Latency
