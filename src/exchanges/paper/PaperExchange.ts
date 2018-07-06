@@ -15,15 +15,14 @@ let addLatency: boolean = false;
 
 /**
  * Method decorator to add simulated latency to public API calls.
- * @param {Object} _target
+ * @param {object} _target
  * @param {string} _propertyKey
  * @param {TypedPropertyDescriptor<any>} descriptor
  * @returns {TypedPropertyDescriptor<any>}
+ * @constructor
  */
 function Latency(_target: object, _propertyKey: string, descriptor: TypedPropertyDescriptor<any>) {
     const originalMethod = descriptor.value;
-    console.log('IN Latency::addLatency::', addLatency);
-
     descriptor.value = function(...args: any[]) {
         return addLatency
             ? new Promise((resolve) => {
