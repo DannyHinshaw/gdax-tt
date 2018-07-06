@@ -139,7 +139,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
                 return Promise.all(allOrderIds.map((orderId: string) => {
                     return this.cancelOrder(orderId);
                 })).then(() => {
-                    return Promise.resolve(allOrderIds);
+                    return allOrderIds;
                 });
             }
 
@@ -154,13 +154,12 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
 
                 // remove all order id's from lookup
                 const canceledOrdersArray: string[] = cancelledOrderIds.toArray();
-                return Promise.all(canceledOrdersArray.map((orderId) => {
+                canceledOrdersArray.forEach((orderId: string) => {
                     return this.clearOrder(orderId, productId);
-                })).then(() => {
-                    // undefined out the orderbook for future garbage collection
-                    this.pendingOrdersByProduct.remove(productId);
-                    return canceledOrdersArray;
                 });
+                // undefined out the orderbook for future garbage collection
+                this.pendingOrdersByProduct.remove(productId);
+                return Promise.resolve(canceledOrdersArray);
             }
 
             return Promise.resolve(cancelledOrderIds.toArray());
@@ -285,9 +284,11 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             this.lastBuyTradeByProduct.setValue(msg.productId, msg);
         }
         const orderBook = this.pendingOrdersByProduct.getValue(msg.productId);
+        console.log('processTrade:: CALLED');
         // do we have any pending orders for this product?
         if (orderBook !== undefined) {
             const tradePrice: BigJS = Big(msg.price);
+            console.log('processTrade::orderBook !== undefined::');
 
             // any buy orders at price above this trade?
             if (orderBook.highestBid !== null && orderBook.highestBid.price.greaterThanOrEqualTo(tradePrice)) {
@@ -295,7 +296,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
                 const i = orderBook.bidTree.iterator();
                 let l: AggregatedLevelWithOrders = i.next();
                 while (l !== null) {
-                    l.orders.forEach((level3Order) => {
+                    l.orders.forEach((level3Order: Level3Order) => {
                         if (level3Order.price.greaterThanOrEqualTo(tradePrice)) {
                             this.fillLimitOrder(orderBook, level3Order, msg);
                         }
@@ -305,12 +306,16 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             }
             // any sell orders at price below this trade?
             if (orderBook.lowestAsk !== null && orderBook.lowestAsk.price.lessThanOrEqualTo(tradePrice)) {
+                console.log('processTrade::IN_SELL_ORDERS_BLOCK::');
                 // simulate order fill for all sell orders at or below trade price
                 const i = orderBook.askTree.iterator();
                 let l: AggregatedLevelWithOrders = i.next();
                 while (l !== null) {
-                    l.orders.forEach((level3Order) => {
+                    console.log('processTrade::IN_SELL_ORDERS_BLOCK::(l !== null)');
+                    l.orders.forEach((level3Order: Level3Order) => {
+                        console.log('processTrade::IN_SELL_ORDERS_BLOCK::IN_FOREACH::level3Order::', level3Order);
                         if (level3Order.price.lessThanOrEqualTo(tradePrice)) {
+                            console.log('processTrade::IN_SELL_ORDERS_BLOCK::IN_FOREACH::FILL_LIMIT_ORDER');
                             this.fillLimitOrder(orderBook, level3Order, msg);
                         }
                     });
