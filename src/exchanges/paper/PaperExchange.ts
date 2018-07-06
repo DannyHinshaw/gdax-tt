@@ -114,7 +114,6 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             } else {
                 return Promise.reject(new GTTError('PaperExchange does not support orderType:' + order.orderType));
             }
-            console.log('placeOrder::this.liveOrdersById.values()::', this.liveOrdersById.values());
 
             return Promise.resolve(liveOrder);
         });
@@ -284,11 +283,9 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             this.lastBuyTradeByProduct.setValue(msg.productId, msg);
         }
         const orderBook = this.pendingOrdersByProduct.getValue(msg.productId);
-        console.log('processTrade:: CALLED');
         // do we have any pending orders for this product?
         if (orderBook !== undefined) {
             const tradePrice: BigJS = Big(msg.price);
-            console.log('processTrade::orderBook !== undefined::');
 
             // any buy orders at price above this trade?
             if (orderBook.highestBid !== null && orderBook.highestBid.price.greaterThanOrEqualTo(tradePrice)) {
@@ -306,16 +303,12 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
             }
             // any sell orders at price below this trade?
             if (orderBook.lowestAsk !== null && orderBook.lowestAsk.price.lessThanOrEqualTo(tradePrice)) {
-                console.log('processTrade::IN_SELL_ORDERS_BLOCK::');
                 // simulate order fill for all sell orders at or below trade price
                 const i = orderBook.askTree.iterator();
                 let l: AggregatedLevelWithOrders = i.next();
                 while (l !== null) {
-                    console.log('processTrade::IN_SELL_ORDERS_BLOCK::(l !== null)');
                     l.orders.forEach((level3Order: Level3Order) => {
-                        console.log('processTrade::IN_SELL_ORDERS_BLOCK::IN_FOREACH::level3Order::', level3Order);
                         if (level3Order.price.lessThanOrEqualTo(tradePrice)) {
-                            console.log('processTrade::IN_SELL_ORDERS_BLOCK::IN_FOREACH::FILL_LIMIT_ORDER');
                             this.fillLimitOrder(orderBook, level3Order, msg);
                         }
                     });
