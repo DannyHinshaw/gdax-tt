@@ -24,8 +24,10 @@ function Latency(_target: object, _propertyKey: string, descriptor: TypedPropert
     const originalMethod = descriptor.value;
     descriptor.value = function(...args: any[]) {
         return addLatency
-            ? Promise.resolve(() => setTimeout(originalMethod.apply(this, args), latencyMS))
-            : Promise.resolve(() => originalMethod.apply(this, args));
+            ? new Promise<void>((resolve) => {
+                return setTimeout(() => resolve(originalMethod.apply(this, args)), latencyMS);
+            })
+            : new Promise<void>((resolve) => resolve(originalMethod.apply(this, args)));
     };
     return descriptor;
 }
