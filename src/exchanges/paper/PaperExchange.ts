@@ -34,7 +34,7 @@ export interface PaperExchangeConfig {
     logger?: Logger;
     // desired percentage rate to simulate errors (0 = no errors; 0.5 = 50% of the time, etc.)
     errorRate?: number;
-    timeoutRange?: {low: number, high: number};
+    latencyRange?: {low: number, high: number};
 }
 
 // TODO: take advantage of 'typed-event-emitter' module and get rid of this interface
@@ -70,13 +70,13 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
         super({ objectMode: true, highWaterMark: 1024 });
         this.errorRate = config.errorRate || 0;
         this.latencyRange = {
-            low: config.timeoutRange.low,
-            high: config.timeoutRange.high
+            low: config.latencyRange.low,
+            high: config.latencyRange.high
         } || {
             low: 0,
             high: 0
         };
-        addLatency = !!(config.timeoutRange.low && config.timeoutRange.high);
+        addLatency = !!(config.latencyRange.low && config.latencyRange.high);
         latencyMS = Math.floor(Math.random() * (this.latencyRange.high - this.latencyRange.low + 1)) + this.latencyRange.low;
         this.logger = config.logger;
         this.liveOrdersById = new Collections.Dictionary();
