@@ -20,7 +20,7 @@ let addLatency: boolean = false;
  * @param {TypedPropertyDescriptor<any>} descriptor
  * @returns {TypedPropertyDescriptor<any>}
  */
-function Latency(_target: object, _propertyKey: string, descriptor: TypedPropertyDescriptor<any>) {
+function AddLatency(_target: object, _propertyKey: string, descriptor: TypedPropertyDescriptor<any>) {
     const originalMethod = descriptor.value;
     descriptor.value = function(...args: any[]) {
         return addLatency
@@ -84,7 +84,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
     }
 
     // ----------------------------------- Authenticated API methods --------------------------------------------------//
-    @Latency
+    @AddLatency
     public placeOrder(order: PlaceOrderMessage): Promise<LiveOrder> {
         // randomly throw error to simulate connection problems
         if (Math.random() <= this.errorRate) {
@@ -136,7 +136,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
         return Promise.resolve(liveOrder);
     }
 
-    @Latency
+    @AddLatency
     public cancelOrder(id: string): Promise<string> {
         if (this.liveOrdersById.containsKey(id)) {
             // remove order from both the id lookup table and the orderbook
@@ -147,7 +147,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
         return Promise.reject('Could not locate order to remove with id:' + id);
     }
 
-    @Latency
+    @AddLatency
     public cancelAllOrders(productId: string): Promise<string[]> {
         if (!productId) {
             // remove all orders for all products
@@ -181,7 +181,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
         return Promise.resolve(cancelledOrderIds.toArray());
     }
 
-    @Latency
+    @AddLatency
     public loadOrder(id: string): Promise<LiveOrder> {
         if (this.liveOrdersById.containsKey(id)) {
             return Promise.resolve(this.liveOrdersById.getValue(id));
@@ -190,7 +190,7 @@ export class PaperExchange extends Duplex implements PublicExchangeAPI, Authenti
         }
     }
 
-    @Latency
+    @AddLatency
     public loadAllOrders(productId: string): Promise<LiveOrder[]> {
         if (!productId) {
             return Promise.resolve(this.liveOrdersById.values());
